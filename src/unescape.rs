@@ -1,3 +1,5 @@
+use alloc::string::String;
+
 #[derive(Debug)]
 pub struct EscapeError;
 

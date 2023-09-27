@@ -16,6 +16,13 @@ extern crate alloc;
 
 use core::fmt;
 
+use alloc::{
+    borrow::ToOwned,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+
 use base64::Engine;
 use serde::de::{self, Visitor};
 
@@ -247,7 +254,7 @@ where
                                             map[index].1 = value;
                                         }
                                         None => {
-                                            map.push((suffix.to_string(), value));
+                                            map.push((suffix.to_owned(), value));
                                         }
                                     }
                                 }
@@ -256,7 +263,7 @@ where
                             None => {
                                 vars.push((
                                     name.to_owned(),
-                                    VarAccess::Vars(vec![(suffix.to_string(), value)]),
+                                    VarAccess::Vars(vec![(suffix.to_owned(), value)]),
                                 ));
                             }
                         }

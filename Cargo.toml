@@ -12,7 +12,7 @@ categories = ["config", "no-std", "encoding"]
 [features]
 std = ["serde/std", "serde_json?/std", "base64/std"]
 default = ["std"]
-json = ["dep:serde_json"]
+json = ["dep:serde_json", "std"]
 
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["alloc"] }
