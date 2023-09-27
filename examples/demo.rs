@@ -2,13 +2,13 @@ use denvars::Deserializer;
 use serde::Deserialize;
 
 fn main() {
-    let de: Deserializer = Deserializer::from_vars([
-        ("A_STRING".to_owned(), "BAR".to_owned()),
-        ("ESCAPED_STRING".to_owned(), r#""q\x20w\u{20}e""#.to_owned()),
-        ("AN_INT".to_owned(), "42".to_owned()),
-        ("A_FLOAT".to_owned(), "42.1".to_owned()),
-        ("A_SEQ".to_owned(), "a,b,\"a\\x20w\\u{20}e\"".to_owned()),
-    ]);
+    std::env::set_var("A_STRING", "BAR");
+    std::env::set_var("ESCAPED_STRING", r#""q\x20w\u{20}e""#);
+    std::env::set_var("AN_INT", "42");
+    std::env::set_var("A_FLOAT", "42.1");
+    std::env::set_var("A_SEQ", "a,b,\"a\\x20w\\u{20}e\"");
+
+    let de: Deserializer = Deserializer::from_env_vars();
 
     #[derive(Debug, serde_derive::Deserialize)]
     struct Foo {
