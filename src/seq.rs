@@ -83,14 +83,14 @@ where
     where
         U: serde::de::DeserializeSeed<'de>,
     {
+        self.value = self.value.trim_start();
         if self.value.is_empty() {
             return Ok(None);
         }
-        self.value = self.value.trim();
         match self.value.strip_prefix('"') {
             None => match self.value.split_once(',') {
                 None => {
-                    let value = core::mem::take(&mut self.value);
+                    let value = core::mem::take(&mut self.value).trim_end();
                     seed.deserialize(ValueDeserializer {
                         value,
                         options: self.options,
@@ -100,7 +100,7 @@ where
                 Some((head, tail)) => {
                     self.value = tail;
                     seed.deserialize(ValueDeserializer {
-                        value: head,
+                        value: head.trim_end(),
                         options: self.options,
                     })
                     .map(Some)

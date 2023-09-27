@@ -113,7 +113,7 @@ where
         match self.value.strip_prefix('"') {
             None => match self.value.split_once(':') {
                 None => {
-                    let value = core::mem::take(&mut self.value);
+                    let value = core::mem::take(&mut self.value).trim_end();
                     seed.deserialize(ValueDeserializer {
                         value,
                         options: self.options,
@@ -123,7 +123,7 @@ where
                 Some((head, tail)) => {
                     self.value = tail;
                     seed.deserialize(ValueDeserializer {
-                        value: head,
+                        value: head.trim_end(),
                         options: self.options,
                     })
                     .map(Some)
@@ -164,7 +164,7 @@ where
         match self.value.strip_prefix('"') {
             None => match self.value.split_once(',') {
                 None => {
-                    let value = core::mem::take(&mut self.value);
+                    let value = core::mem::take(&mut self.value).trim_end();
                     seed.deserialize(ValueDeserializer {
                         value,
                         options: self.options,
@@ -173,7 +173,7 @@ where
                 Some((head, tail)) => {
                     self.value = tail;
                     seed.deserialize(ValueDeserializer {
-                        value: head,
+                        value: head.trim_end(),
                         options: self.options,
                     })
                 }
