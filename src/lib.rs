@@ -175,6 +175,20 @@ impl Deserializer {
 
         Deserializer::from_vars(vars)
     }
+
+    #[cfg(feature = "std")]
+    pub fn from_prefixed_env_vars(prefix: &str) -> Self {
+        let vars = std::env::vars_os().filter_map(|(key, value)| {
+            let key = key.to_str()?;
+            if let Some(key_suffix) = key.strip_prefix(prefix) {
+                Some((key_suffix.to_owned(), value.to_str()?.to_owned()))
+            } else {
+                None
+            }
+        });
+
+        Deserializer::from_vars(vars)
+    }
 }
 
 impl<'de, B, N, S, M, T> de::Deserializer<'de> for Deserializer<Options<B, N, S, M, T>>
