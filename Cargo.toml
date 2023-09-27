@@ -1,0 +1,29 @@
+[package]
+name = "denvars"
+version = "0.1.0"
+edition = "2021"
+description = "Deserialize environment variables"
+repository = "https://github.com/zakarumych/denvars"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["serde", "env"]
+categories = ["config", "no-std", "encoding"]
+
+[features]
+std = ["serde/std", "serde_json?/std", "base64/std"]
+default = ["std"]
+json = ["dep:serde_json"]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0", optional = true, default-features = false, features = [
+    "alloc",
+] }
+base64 = { version = "0.21", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+serde_derive = "1.0"
+
+[[example]]
+name = "demo"
+required-features = ["json", "std"]
