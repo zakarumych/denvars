@@ -7,7 +7,7 @@
 //! maps from comma-separated key:value pairs,
 //! allows using potentially escaped strings in double quotes,
 //! decodes base64-encoded byte arrays if configured (this is default behavior),
-//! compare uppercased names of fields when deserializing struct from map of env vars if configured (this is default behavior),
+//! compare uppercase names of fields when deserializing struct from map of env vars if configured (this is default behavior),
 //! It may treat values as JSON to support deserializing nested structures.
 //! Custom string parsers may be implemented to support other formats.
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -23,25 +23,12 @@ use alloc::{
     vec::Vec,
 };
 
-use base64::Engine;
-use r#enum::EnumParser;
 use serde::de::{self, Visitor};
 
-pub use self::{
-    bool::{BoolParser, PermissiveBoolParser},
-    map::{CommaColonSeparatedParser, MapParser},
-    num::NumParser,
-    r#struct::StructParser,
-    seq::{CommaSeparatedParser, SeqParser},
-    unescape::unescape,
-};
+pub use self::{basic::BasicParser, parser::Parser, unescape::unescape};
 
-mod bool;
-mod r#enum;
-mod map;
-mod num;
-mod seq;
-mod r#struct;
+mod basic;
+mod parser;
 mod unescape;
 
 #[cfg(feature = "json")]
@@ -83,81 +70,28 @@ impl de::Error for Error {
 #[derive(Clone, Copy)]
 pub struct FromStrParser;
 
-/// Parser that just passes the value to `visit_str`.
 #[derive(Clone, Copy)]
-pub struct PassthroughParser;
-
-#[derive(Clone, Copy)]
-pub struct Options<B, N, S, M, T, E> {
-    /// Controls how booleans are parsed from env var values.
-    bool_parser: B,
-
-    /// Controls how numbers are parsed from env var values.
-    num_parser: N,
-
-    /// Controls how sequences are parsed from env var values.
-    seq_parser: S,
-
-    /// Controls how maps are parsed from env var values.
-    map_parser: M,
-
-    /// Controls how structures are parsed from env var values.
-    struct_parser: T,
-
-    /// Controls how enums are parsed from env var values.
-    enum_parser: E,
+pub struct Options<P> {
+    /// Controls how values are parsed from env var values.
+    parser: P,
 
     /// Controls whether to compare uppercase names of fields when
     /// deserializing struct from map of env vars.
     ident_upper: bool,
-
-    /// Controls whether to decode base64-encoded when deserializing bytes.
-    bytes_base64: bool,
 }
 
-type DefaultOptions = Options<
-    PermissiveBoolParser,
-    FromStrParser,
-    CommaSeparatedParser,
-    CommaColonSeparatedParser,
-    PassthroughParser,
-    PassthroughParser,
->;
+type DefaultOptions = Options<BasicParser>;
 
-impl
-    Options<
-        PermissiveBoolParser,
-        FromStrParser,
-        CommaSeparatedParser,
-        CommaColonSeparatedParser,
-        PassthroughParser,
-        PassthroughParser,
-    >
-{
+impl Options<BasicParser> {
     pub const fn basic() -> Self {
         Options {
-            bool_parser: PermissiveBoolParser,
-            num_parser: FromStrParser,
-            seq_parser: CommaSeparatedParser,
-            map_parser: CommaColonSeparatedParser,
-            struct_parser: PassthroughParser,
-            enum_parser: PassthroughParser,
+            parser: BasicParser,
             ident_upper: true,
-            bytes_base64: true,
         }
     }
 }
 
-impl Default
-    for Options<
-        PermissiveBoolParser,
-        FromStrParser,
-        CommaSeparatedParser,
-        CommaColonSeparatedParser,
-        PassthroughParser,
-        PassthroughParser,
-    >
-{
+impl Default for Options<BasicParser> {
     fn default() -> Self {
         Self::basic()
     }
@@ -213,14 +147,9 @@ impl<O> Deserializer<O> {
     }
 }
 
-impl<'de, B, N, S, M, T, E> de::Deserializer<'de> for Deserializer<Options<B, N, S, M, T, E>>
+impl<'de, P> de::Deserializer<'de> for Deserializer<Options<P>>
 where
-    B: BoolParser,
-    N: NumParser,
-    S: SeqParser,
-    M: MapParser,
-    T: StructParser,
-    E: EnumParser,
+    P: Parser,
 {
     type Error = Error;
 
@@ -340,14 +269,9 @@ struct Map<O> {
     options: O,
 }
 
-impl<'de, B, N, S, M, T, E> de::MapAccess<'de> for Map<Options<B, N, S, M, T, E>>
+impl<'de, P> de::MapAccess<'de> for Map<Options<P>>
 where
-    B: BoolParser,
-    N: NumParser,
-    S: SeqParser,
-    M: MapParser,
-    T: StructParser,
-    E: EnumParser,
+    P: Parser,
 {
     type Error = Error;
 
@@ -374,7 +298,7 @@ where
         match self.next_value.take() {
             Some(VarAccess::Value(value)) => seed.deserialize(ValueDeserializer {
                 value: &value,
-                options: self.options,
+                parser: self.options.parser,
             }),
             Some(VarAccess::Vars(vars)) => seed.deserialize(Deserializer {
                 vars,
@@ -385,9 +309,9 @@ where
     }
 }
 
-struct ValueDeserializer<'a, B, N, S, M, T, E> {
+struct ValueDeserializer<'a, P> {
     value: &'a str,
-    options: Options<B, N, S, M, T, E>,
+    parser: P,
 }
 
 macro_rules! parse_num {
@@ -396,19 +320,14 @@ macro_rules! parse_num {
         where
             V: Visitor<'de>,
         {
-            self.options.num_parser.$parse(&self.value, visitor)
+            self.parser.$parse(&self.value, visitor)
         }
     )*};
 }
 
-impl<'de, B, N, S, M, T, E> de::Deserializer<'de> for ValueDeserializer<'_, B, N, S, M, T, E>
+impl<'de, P> de::Deserializer<'de> for ValueDeserializer<'_, P>
 where
-    B: BoolParser,
-    N: NumParser,
-    S: SeqParser,
-    M: MapParser,
-    T: StructParser,
-    E: EnumParser,
+    P: Parser,
 {
     type Error = Error;
 
@@ -430,7 +349,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.options.bool_parser.parse(&self.value, visitor)
+        self.parser.parse_bool(&self.value, visitor)
     }
 
     parse_num! {
@@ -512,19 +431,7 @@ where
     where
         V: Visitor<'de>,
     {
-        if self.options.bytes_base64 {
-            let decoded = base64::engine::general_purpose::STANDARD_NO_PAD
-                .decode(&self.value)
-                .map_err(|_| {
-                    de::Error::invalid_value(
-                        de::Unexpected::Str(&self.value),
-                        &"Valid base64 sequence",
-                    )
-                })?;
-            visitor.visit_byte_buf(decoded)
-        } else {
-            visitor.visit_bytes(self.value.as_bytes())
-        }
+        self.parser.parse_bytes(self.value, visitor)
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Error>
@@ -538,9 +445,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.options
-            .seq_parser
-            .parse_seq(self.options, &self.value, visitor)
+        self.parser.parse_seq(&self.value, visitor)
     }
 
     fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Error>
@@ -566,9 +471,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.options
-            .map_parser
-            .parse_map(self.options, &self.value, visitor)
+        self.parser.parse_map(&self.value, visitor)
     }
 
     fn deserialize_struct<V>(
@@ -580,9 +483,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.options
-            .struct_parser
-            .parse_struct(self.options, &self.value, name, fields, visitor)
+        self.parser.parse_struct(&self.value, name, fields, visitor)
     }
 
     fn deserialize_newtype_struct<V>(
@@ -619,9 +520,7 @@ where
     where
         V: Visitor<'de>,
     {
-        self.options
-            .enum_parser
-            .parse_enum(self.options, &self.value, name, variants, visitor)
+        self.parser.parse_enum(&self.value, name, variants, visitor)
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>

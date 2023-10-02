@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::{borrow::Cow, string::String};
 
 #[derive(Debug)]
 pub struct EscapeError;
@@ -51,6 +51,24 @@ pub fn unescape(s: &str) -> Result<(String, Option<&str>), EscapeError> {
         }
     }
     Ok((result, None))
+}
+
+pub fn unescaped(s: &str) -> Result<Cow<'_, str>, EscapeError> {
+    match s.strip_prefix('"') {
+        None => Ok(Cow::Borrowed(s)),
+        Some(s) => {
+            let (s, tail) = unescape(s)?;
+            if let Some(tail) = tail {
+                if tail.is_empty() {
+                    Ok(Cow::Owned(s))
+                } else {
+                    Err(EscapeError)
+                }
+            } else {
+                Ok(Cow::Owned(s))
+            }
+        }
+    }
 }
 
 #[test]
