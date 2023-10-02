@@ -84,7 +84,7 @@ impl Parser for TomlParser {
 }
 
 impl Options<TomlParser> {
-    pub const fn json() -> Self {
+    pub const fn toml() -> Self {
         Options {
             parser: TomlParser,
             ident_upper: true,
