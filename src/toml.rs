@@ -83,7 +83,7 @@ impl EnumParser for TomlParser {
 }
 
 impl Options<PermissiveBoolParser, FromStrParser, TomlParser, TomlParser, TomlParser, TomlParser> {
-    pub const fn json() -> Self {
+    pub const fn toml() -> Self {
         Options {
             bool_parser: PermissiveBoolParser,
             num_parser: FromStrParser,
