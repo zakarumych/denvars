@@ -1,14 +1,14 @@
 use serde::de::{MapAccess, Visitor};
 
 use crate::{
-    bool::BoolParser, num::NumParser, r#struct::StructParser, seq::SeqParser, unescape::unescape,
-    Error, Options, PassthroughParser, ValueDeserializer,
+    bool::BoolParser, num::NumParser, r#enum::EnumParser, r#struct::StructParser, seq::SeqParser,
+    unescape::unescape, Error, Options, PassthroughParser, ValueDeserializer,
 };
 
 pub trait MapParser: Copy {
-    fn parse_map<'de, V, B, N, S, T>(
+    fn parse_map<'de, V, B, N, S, T, E>(
         &self,
-        options: Options<B, N, S, Self, T>,
+        options: Options<B, N, S, Self, T, E>,
         value: &str,
         visitor: V,
     ) -> Result<V::Value, Error>
@@ -17,14 +17,15 @@ pub trait MapParser: Copy {
         B: BoolParser,
         N: NumParser,
         S: SeqParser,
-        T: StructParser;
+        T: StructParser,
+        E: EnumParser;
 }
 
 impl MapParser for PassthroughParser {
     #[inline]
-    fn parse_map<'de, V, B, N, S, T>(
+    fn parse_map<'de, V, B, N, S, T, E>(
         &self,
-        _options: Options<B, N, S, Self, T>,
+        _options: Options<B, N, S, Self, T, E>,
         value: &str,
         visitor: V,
     ) -> Result<V::Value, Error>
@@ -39,9 +40,9 @@ impl MapParser for PassthroughParser {
 pub struct CommaColonSeparatedParser;
 
 impl MapParser for CommaColonSeparatedParser {
-    fn parse_map<'de, V, B, N, S, T>(
+    fn parse_map<'de, V, B, N, S, T, E>(
         &self,
-        options: Options<B, N, S, Self, T>,
+        options: Options<B, N, S, Self, T, E>,
         value: &str,
         visitor: V,
     ) -> Result<V::Value, Error>
@@ -51,15 +52,16 @@ impl MapParser for CommaColonSeparatedParser {
         N: NumParser,
         S: SeqParser,
         T: StructParser,
+        E: EnumParser,
     {
         visitor.visit_map(CommaColonSeparatedParserMapAccess { options, value })
     }
 }
 
 impl StructParser for CommaColonSeparatedParser {
-    fn parse_struct<'de, V, B, N, S, M>(
+    fn parse_struct<'de, V, B, N, S, M, E>(
         &self,
-        options: Options<B, N, S, M, Self>,
+        options: Options<B, N, S, M, Self, E>,
         value: &str,
         _name: &'static str,
         _fields: &'static [&'static str],
@@ -71,13 +73,14 @@ impl StructParser for CommaColonSeparatedParser {
         N: NumParser,
         S: SeqParser,
         M: MapParser,
+        E: EnumParser,
     {
         visitor.visit_map(CommaColonSeparatedParserMapAccess { options, value })
     }
 }
 
-struct CommaColonSeparatedParserMapAccess<'a, B, N, S, M, T> {
-    options: Options<B, N, S, M, T>,
+struct CommaColonSeparatedParserMapAccess<'a, B, N, S, M, T, E> {
+    options: Options<B, N, S, M, T, E>,
     value: &'a str,
 }
 
@@ -91,14 +94,15 @@ where
     )
 }
 
-impl<'de, 'a, B, N, S, M, T> MapAccess<'de>
-    for CommaColonSeparatedParserMapAccess<'a, B, N, S, M, T>
+impl<'de, 'a, B, N, S, M, T, E> MapAccess<'de>
+    for CommaColonSeparatedParserMapAccess<'a, B, N, S, M, T, E>
 where
     B: BoolParser,
     N: NumParser,
     S: SeqParser,
     M: MapParser,
     T: StructParser,
+    E: EnumParser,
 {
     type Error = Error;
 

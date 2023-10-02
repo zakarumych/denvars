@@ -1,14 +1,14 @@
 use serde::de::{SeqAccess, Visitor};
 
 use crate::{
-    bool::BoolParser, map::MapParser, num::NumParser, r#struct::StructParser, unescape::unescape,
-    Error, Options, PassthroughParser, ValueDeserializer,
+    bool::BoolParser, map::MapParser, num::NumParser, r#enum::EnumParser, r#struct::StructParser,
+    unescape::unescape, Error, Options, PassthroughParser, ValueDeserializer,
 };
 
 pub trait SeqParser: Copy {
-    fn parse_seq<'de, V, B, N, M, T>(
+    fn parse_seq<'de, V, B, N, M, T, E>(
         &self,
-        options: Options<B, N, Self, M, T>,
+        options: Options<B, N, Self, M, T, E>,
         value: &str,
         visitor: V,
     ) -> Result<V::Value, Error>
@@ -17,13 +17,14 @@ pub trait SeqParser: Copy {
         B: BoolParser,
         N: NumParser,
         M: MapParser,
-        T: StructParser;
+        T: StructParser,
+        E: EnumParser;
 }
 
 impl SeqParser for PassthroughParser {
-    fn parse_seq<'de, V, B, N, M, T>(
+    fn parse_seq<'de, V, B, N, M, T, E>(
         &self,
-        _options: Options<B, N, Self, M, T>,
+        _options: Options<B, N, Self, M, T, E>,
         value: &str,
         visitor: V,
     ) -> Result<V::Value, Error>
@@ -38,9 +39,9 @@ impl SeqParser for PassthroughParser {
 pub struct CommaSeparatedParser;
 
 impl SeqParser for CommaSeparatedParser {
-    fn parse_seq<'de, V, B, N, M, T>(
+    fn parse_seq<'de, V, B, N, M, T, E>(
         &self,
-        options: Options<B, N, Self, M, T>,
+        options: Options<B, N, Self, M, T, E>,
         value: &str,
         visitor: V,
     ) -> Result<V::Value, Error>
@@ -50,13 +51,14 @@ impl SeqParser for CommaSeparatedParser {
         N: NumParser,
         M: MapParser,
         T: StructParser,
+        E: EnumParser,
     {
         visitor.visit_seq(CommaSeparatedParserSeqAccess { options, value })
     }
 }
 
-struct CommaSeparatedParserSeqAccess<'a, B, N, M, T> {
-    options: Options<B, N, CommaSeparatedParser, M, T>,
+struct CommaSeparatedParserSeqAccess<'a, B, N, M, T, E> {
+    options: Options<B, N, CommaSeparatedParser, M, T, E>,
     value: &'a str,
 }
 
@@ -70,12 +72,13 @@ where
     )
 }
 
-impl<'de, 'a, B, N, M, T> SeqAccess<'de> for CommaSeparatedParserSeqAccess<'a, B, N, M, T>
+impl<'de, 'a, B, N, M, T, E> SeqAccess<'de> for CommaSeparatedParserSeqAccess<'a, B, N, M, T, E>
 where
     B: BoolParser,
     N: NumParser,
     M: MapParser,
     T: StructParser,
+    E: EnumParser,
 {
     type Error = Error;
 

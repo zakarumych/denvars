@@ -24,6 +24,7 @@ use alloc::{
 };
 
 use base64::Engine;
+use r#enum::EnumParser;
 use serde::de::{self, Visitor};
 
 pub use self::{
@@ -36,6 +37,7 @@ pub use self::{
 };
 
 mod bool;
+mod r#enum;
 mod map;
 mod num;
 mod seq;
@@ -44,6 +46,9 @@ mod unescape;
 
 #[cfg(feature = "json")]
 pub mod json;
+
+#[cfg(feature = "toml")]
+pub mod toml;
 
 #[derive(Debug)]
 pub struct Error {
@@ -83,7 +88,7 @@ pub struct FromStrParser;
 pub struct PassthroughParser;
 
 #[derive(Clone, Copy)]
-pub struct Options<B, N, S, M, T> {
+pub struct Options<B, N, S, M, T, E> {
     /// Controls how booleans are parsed from env var values.
     bool_parser: B,
 
@@ -99,7 +104,10 @@ pub struct Options<B, N, S, M, T> {
     /// Controls how structures are parsed from env var values.
     struct_parser: T,
 
-    /// Controls whether to compare uppercased names of fields when
+    /// Controls how enums are parsed from env var values.
+    enum_parser: E,
+
+    /// Controls whether to compare uppercase names of fields when
     /// deserializing struct from map of env vars.
     ident_upper: bool,
 
@@ -113,6 +121,7 @@ type DefaultOptions = Options<
     CommaSeparatedParser,
     CommaColonSeparatedParser,
     PassthroughParser,
+    PassthroughParser,
 >;
 
 impl
@@ -121,6 +130,7 @@ impl
         FromStrParser,
         CommaSeparatedParser,
         CommaColonSeparatedParser,
+        PassthroughParser,
         PassthroughParser,
     >
 {
@@ -131,6 +141,7 @@ impl
             seq_parser: CommaSeparatedParser,
             map_parser: CommaColonSeparatedParser,
             struct_parser: PassthroughParser,
+            enum_parser: PassthroughParser,
             ident_upper: true,
             bytes_base64: true,
         }
@@ -143,6 +154,7 @@ impl Default
         FromStrParser,
         CommaSeparatedParser,
         CommaColonSeparatedParser,
+        PassthroughParser,
         PassthroughParser,
     >
 {
@@ -191,13 +203,24 @@ impl Deserializer {
     }
 }
 
-impl<'de, B, N, S, M, T> de::Deserializer<'de> for Deserializer<Options<B, N, S, M, T>>
+impl<O> Deserializer<O> {
+    /// Set options of the deserializer.
+    pub fn with_options<X>(self, options: X) -> Deserializer<X> {
+        Deserializer {
+            vars: self.vars,
+            options,
+        }
+    }
+}
+
+impl<'de, B, N, S, M, T, E> de::Deserializer<'de> for Deserializer<Options<B, N, S, M, T, E>>
 where
     B: BoolParser,
     N: NumParser,
     S: SeqParser,
     M: MapParser,
     T: StructParser,
+    E: EnumParser,
 {
     type Error = Error;
 
@@ -317,13 +340,14 @@ struct Map<O> {
     options: O,
 }
 
-impl<'de, B, N, S, M, T> de::MapAccess<'de> for Map<Options<B, N, S, M, T>>
+impl<'de, B, N, S, M, T, E> de::MapAccess<'de> for Map<Options<B, N, S, M, T, E>>
 where
     B: BoolParser,
     N: NumParser,
     S: SeqParser,
     M: MapParser,
     T: StructParser,
+    E: EnumParser,
 {
     type Error = Error;
 
@@ -361,9 +385,9 @@ where
     }
 }
 
-struct ValueDeserializer<'a, B, N, S, M, T> {
+struct ValueDeserializer<'a, B, N, S, M, T, E> {
     value: &'a str,
-    options: Options<B, N, S, M, T>,
+    options: Options<B, N, S, M, T, E>,
 }
 
 macro_rules! parse_num {
@@ -377,13 +401,14 @@ macro_rules! parse_num {
     )*};
 }
 
-impl<'de, B, N, S, M, T> de::Deserializer<'de> for ValueDeserializer<'_, B, N, S, M, T>
+impl<'de, B, N, S, M, T, E> de::Deserializer<'de> for ValueDeserializer<'_, B, N, S, M, T, E>
 where
     B: BoolParser,
     N: NumParser,
     S: SeqParser,
     M: MapParser,
     T: StructParser,
+    E: EnumParser,
 {
     type Error = Error;
 
@@ -585,7 +610,24 @@ where
         visitor.visit_unit()
     }
 
-    serde::forward_to_deserialize_any! {
-        enum ignored_any
+    fn deserialize_enum<V>(
+        self,
+        name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.options
+            .enum_parser
+            .parse_enum(self.options, &self.value, name, variants, visitor)
+    }
+
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_any(visitor)
     }
 }
