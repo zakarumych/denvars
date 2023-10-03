@@ -335,7 +335,7 @@ where
     where
         V: de::Visitor<'de>,
     {
-        self.deserialize_str(visitor)
+        self.parser.parse_any(&self.value, visitor)
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Error>
